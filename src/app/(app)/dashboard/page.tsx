@@ -448,6 +448,13 @@ export default function DashboardPage() {
           <div className="stat-value">{partnerCompleted}/{partnerTotal}</div>
           <div className="stat-label">Partner Today</div>
         </div>
+        <div className="card stat-card">
+          <div className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Flame size={20} style={{ color: 'var(--color-warning)' }} />
+            {partnerStreak}
+          </div>
+          <div className="stat-label">Partner Streak</div>
+        </div>
         {activeTarget && (
           <div className="card stat-card">
             <div className="stat-value">
