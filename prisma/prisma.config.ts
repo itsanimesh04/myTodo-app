@@ -8,6 +8,6 @@ export default defineConfig({
     path: path.join(import.meta.dirname, 'migrations'),
   },
   datasource: {
-    url: process.env.DATABASE_URL || 'file:./dev.db',
+    url: process.env.DATABASE_URL || '',
   },
 })
