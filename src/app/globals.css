@@ -2595,16 +2595,32 @@ select {
    ============================================================ */
 
 @media (max-width: 768px) {
+  /* CORE FIX: Switch layout from horizontal (sidebar) to vertical (stacked) on mobile */
+  .app-layout {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
   .sidebar {
     display: none;
   }
 
   .mobile-header {
     display: flex;
+    position: sticky;
+    top: 0;
+    width: 100%;
+    z-index: 40;
   }
 
   .mobile-nav {
     display: block;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 50;
   }
 
   .main-content {
@@ -2612,6 +2628,8 @@ select {
     padding: var(--space-lg) var(--space-md);
     padding-bottom: 80px;
     max-width: 100%;
+    width: 100%;
+    flex: 1;
   }
 
   .accountability-grid {
@@ -2661,6 +2679,36 @@ select {
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dual-scoreboard {
+    grid-template-columns: 1fr;
+  }
+
+  .member-score-card {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--space-sm);
+  }
+
+  .invite-code {
+    font-size: 22px;
+    letter-spacing: 0.15em;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  .toast-container {
+    left: var(--space-md);
+    right: var(--space-md);
+    bottom: 70px;
+  }
+
+  .toast {
+    max-width: 100%;
   }
 }
 
