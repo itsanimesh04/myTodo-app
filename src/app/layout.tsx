@@ -4,8 +4,13 @@ import { Providers } from './providers'
 import { ToastProvider } from '@/components/ui/ToastProvider'
 
 export const metadata: Metadata = {
-  title: 'Together — Accountability To-Do',
+  title: 'MyTodos',
   description: 'A calm, minimalist to-do app for two people. Stay accountable together.',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/favicon.ico',
+    apple: '/icon.png',
+  },
 }
 
 export default function RootLayout({

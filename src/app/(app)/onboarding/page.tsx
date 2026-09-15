@@ -98,7 +98,7 @@ export default function OnboardingPage() {
         {/* Step: Choice */}
         {step === 'choice' && (
           <div className="onboarding-step">
-            <h2>Welcome to Together</h2>
+            <h2>Welcome to MyTodos</h2>
             <p>Set up your accountability space. Would you like to create a new House or join an existing one?</p>
 
             <div className="onboarding-options">

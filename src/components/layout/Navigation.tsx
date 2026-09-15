@@ -67,7 +67,7 @@ export function Navigation() {
             <rect width="32" height="32" rx="8" fill="var(--color-accent)" />
             <path d="M10 16L14 20L22 12" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <h2>Together</h2>
+          <h2>MyTodos</h2>
         </div>
 
         <nav className="sidebar-nav">
