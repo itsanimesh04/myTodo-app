@@ -133,14 +133,26 @@ export default function DashboardPage() {
     }
   }, [user])
 
+  const fetchUser = useCallback(async () => {
+    try {
+      const res = await fetch('/api/user')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.user?.avatar) setMyAvatar(data.user.avatar)
+      }
+    } catch {
+      // silently ignore
+    }
+  }, [])
+
   // Initial load
   useEffect(() => {
     async function loadAll() {
-      await Promise.all([fetchTasks(), fetchActivity(), fetchTargets(), fetchStreakAndScores()])
+      await Promise.all([fetchUser(), fetchTasks(), fetchActivity(), fetchTargets(), fetchStreakAndScores()])
       setLoading(false)
     }
     loadAll()
-  }, [fetchTasks, fetchActivity, fetchTargets, fetchStreakAndScores])
+  }, [fetchUser, fetchTasks, fetchActivity, fetchTargets, fetchStreakAndScores])
 
   // Real-time updates
   useRealTime(

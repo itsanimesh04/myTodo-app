@@ -141,7 +141,7 @@ export default function SettingsPage() {
             <div className="flex items-center gap-xl mb-xl">
               <div className="avatar avatar-xl" style={{ border: '2px solid var(--colors-hairline)' }}>
                 <img
-                  src={selectedAvatar || getCatAvatar(user?.name, user?.image)}
+                  src={getCatAvatar(user?.name, selectedAvatar || user?.image)}
                   alt={user?.name || ''}
                 />
               </div>
@@ -159,12 +159,13 @@ export default function SettingsPage() {
                     <button
                       key={cat.id}
                       type="button"
-                      onClick={() => setSelectedAvatar(cat.url)}
+                      onClick={() => setSelectedAvatar(cat.id)}
                       style={{
                         width: 52,
                         height: 52,
                         borderRadius: '50%',
                         border:
+                          selectedAvatar === cat.id ||
                           selectedAvatar === cat.url ||
                           (!selectedAvatar && getCatAvatar(user?.name) === cat.url)
                             ? '3px solid var(--colors-ink)'

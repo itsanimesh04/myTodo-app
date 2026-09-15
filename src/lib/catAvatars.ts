@@ -239,9 +239,14 @@ export const CAT_AVATARS: CatAvatarPreset[] = [
  * If user has a custom image, returns that.
  * Otherwise deterministically returns one of the 6 cute cats!
  */
-export function getCatAvatar(nameOrSeed?: string | null, customUrl?: string | null): string {
-  if (customUrl && customUrl.trim() !== '') {
-    return customUrl
+export function getCatAvatar(nameOrSeed?: string | null, customUrlOrId?: string | null): string {
+  if (customUrlOrId && customUrlOrId.trim() !== '') {
+    const val = customUrlOrId.trim()
+    const foundPreset = CAT_AVATARS.find((c) => c.id === val || c.url === val)
+    if (foundPreset) return foundPreset.url
+    if (val.startsWith('data:') || val.startsWith('http')) {
+      return val
+    }
   }
   const str = (nameOrSeed || 'User').trim().toLowerCase()
   let hash = 0
