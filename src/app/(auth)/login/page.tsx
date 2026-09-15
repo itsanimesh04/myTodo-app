@@ -17,9 +17,11 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
+    const normalizedEmail = email.toLowerCase().trim()
+
     try {
       const result = await signIn('credentials', {
-        email,
+        email: normalizedEmail,
         password,
         redirect: false,
       })
@@ -39,12 +41,12 @@ export default function LoginPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-container">
+      <div className="auth-card">
         <div className="auth-header">
           <div className="auth-logo">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <svg width="36" height="36" viewBox="0 0 32 32" fill="none">
               <rect width="32" height="32" rx="8" fill="var(--color-accent)" />
-              <path d="M10 16L14 20L22 12" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 16L14 20L22 12" stroke="var(--colors-on-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <h1>Welcome back</h1>

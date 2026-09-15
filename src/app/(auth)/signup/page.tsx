@@ -18,12 +18,14 @@ export default function SignupPage() {
     setError('')
     setLoading(true)
 
+    const normalizedEmail = email.toLowerCase().trim()
+
     try {
       // Create account
       const res = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name: name.trim(), email: normalizedEmail, password }),
       })
 
       const data = await res.json()
@@ -35,18 +37,22 @@ export default function SignupPage() {
       }
 
       // Auto sign in
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      })
+      try {
+        const result = await signIn('credentials', {
+          email: normalizedEmail,
+          password,
+          redirect: false,
+        })
 
-      if (result?.error) {
-        setError('Account created but sign in failed. Please sign in manually.')
-        router.push('/login')
-      } else {
-        router.push('/onboarding')
-        router.refresh()
+        if (result?.error) {
+          router.push('/login?signedUp=true')
+        } else {
+          router.push('/onboarding')
+          router.refresh()
+        }
+      } catch (authError) {
+        console.error('Sign-in redirect error:', authError)
+        router.push('/login?signedUp=true')
       }
     } catch {
       setError('Something went wrong. Please try again.')
@@ -57,12 +63,12 @@ export default function SignupPage() {
 
   return (
     <div className="auth-page">
-      <div className="auth-container">
+      <div className="auth-card">
         <div className="auth-header">
           <div className="auth-logo">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <svg width="36" height="36" viewBox="0 0 32 32" fill="none">
               <rect width="32" height="32" rx="8" fill="var(--color-accent)" />
-              <path d="M10 16L14 20L22 12" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 16L14 20L22 12" stroke="var(--colors-on-primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <h1>Create your account</h1>
