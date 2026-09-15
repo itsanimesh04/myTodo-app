@@ -130,6 +130,45 @@ export function Navigation() {
         </div>
       </aside>
 
+      {/* Mobile Top Header */}
+      <header className="mobile-header">
+        <div className="mobile-header-left">
+          <Link href="/dashboard" className="mobile-header-logo">
+            <svg width="24" height="24" viewBox="0 0 32 32" fill="none">
+              <rect width="32" height="32" rx="8" fill="var(--color-accent)" />
+              <path d="M10 16L14 20L22 12" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>MyTodos</span>
+          </Link>
+        </div>
+        <div className="mobile-header-right">
+          <Link
+            href="/notifications"
+            className="mobile-header-btn"
+            aria-label="Notifications"
+          >
+            <div className="nav-icon-wrapper">
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+              )}
+            </div>
+          </Link>
+          <Link
+            href="/settings"
+            className="mobile-header-avatar"
+            aria-label="Settings"
+            title="Settings"
+          >
+            {user ? (
+              <img src={getCatAvatar(user.name, user.image)} alt={user.name || 'Settings'} />
+            ) : (
+              <Settings size={20} />
+            )}
+          </Link>
+        </div>
+      </header>
+
       {/* Mobile Bottom Navigation */}
       <nav className="mobile-nav" aria-label="Mobile navigation">
         <div className="mobile-nav-items">
@@ -143,22 +182,18 @@ export function Navigation() {
                 className={`mobile-nav-item ${isActive ? 'active' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <Icon size={22} />
+                <Icon size={20} />
                 <span>{item.label}</span>
               </Link>
             )
           })}
           <Link
-            href="/notifications"
-            className={`mobile-nav-item ${pathname === '/notifications' ? 'active' : ''}`}
+            href="/settings"
+            className={`mobile-nav-item ${pathname === '/settings' ? 'active' : ''}`}
+            aria-current={pathname === '/settings' ? 'page' : undefined}
           >
-            <div className="nav-icon-wrapper">
-              <Bell size={22} />
-              {unreadCount > 0 && (
-                <span className="nav-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
-              )}
-            </div>
-            <span>Alerts</span>
+            <Settings size={20} />
+            <span>Settings</span>
           </Link>
         </div>
       </nav>

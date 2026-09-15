@@ -1241,6 +1241,85 @@ select {
   text-overflow: ellipsis;
 }
 
+/* Mobile Header */
+.mobile-header {
+  display: none;
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54px;
+  background: var(--colors-canvas-elevated);
+  border-bottom: 1px solid var(--colors-hairline);
+  padding: 0 var(--space-md);
+  align-items: center;
+  justify-content: space-between;
+  z-index: 40;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.mobile-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.mobile-header-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  text-decoration: none;
+  color: var(--colors-ink);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.mobile-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.mobile-header-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  color: var(--colors-ink);
+  text-decoration: none;
+  transition: background var(--transition-fast);
+}
+
+.mobile-header-btn:hover {
+  background: var(--colors-canvas-subtle);
+}
+
+.mobile-header-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1.5px solid var(--colors-hairline);
+  background: var(--colors-canvas-subtle);
+  transition: transform var(--transition-fast);
+}
+
+.mobile-header-avatar:active {
+  transform: scale(0.92);
+}
+
+.mobile-header-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 /* Mobile Nav */
 .mobile-nav {
   display: none;
@@ -1266,12 +1345,13 @@ select {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 4px 8px;
+  padding: 4px 4px;
   font-size: 10px;
   font-weight: 500;
   color: var(--colors-mute);
   text-decoration: none;
   transition: color var(--transition-fast);
+  min-width: 48px;
 }
 
 .mobile-nav-item:hover,
@@ -2065,6 +2145,10 @@ select {
 @media (max-width: 768px) {
   .sidebar {
     display: none;
+  }
+
+  .mobile-header {
+    display: flex;
   }
 
   .mobile-nav {
