@@ -23,7 +23,7 @@ interface MemberStats {
 
 export default function ProgressPage() {
   const { data: session } = useSession()
-  const userId = (session?.user as Record<string, unknown>)?.id
+  const userId = session?.user?.id
 
   const [stats, setStats] = useState<{
     members: MemberStats[]

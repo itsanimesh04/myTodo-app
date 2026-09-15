@@ -18,7 +18,7 @@ import type { TaskWithUser, ActivityWithDetails, TargetWithUser } from '@/types'
 export default function DashboardPage() {
   const { data: session } = useSession()
   const user = session?.user
-  const houseId = (user as Record<string, unknown>)?.houseId as string | null | undefined
+  const houseId = user?.houseId
 
   const [myTasks, setMyTasks] = useState<TaskWithUser[]>([])
   const [partnerTasks, setPartnerTasks] = useState<TaskWithUser[]>([])
@@ -75,7 +75,7 @@ export default function DashboardPage() {
       const data = await res.json()
       if (data.stats?.members) {
         const me = data.stats.members.find(
-          (m: { userId: string }) => m.userId === (user as Record<string, unknown>)?.id
+          (m: { userId: string }) => m.userId === user?.id
         )
         if (me) setStreak(me.currentStreak)
       }
@@ -167,7 +167,7 @@ export default function DashboardPage() {
   const myRate = myTotal > 0 ? Math.round((myCompleted / myTotal) * 100) : 0
   const partnerRate = partnerTotal > 0 ? Math.round((partnerCompleted / partnerTotal) * 100) : 0
 
-  const myTargets = targets.filter((t) => t.userId === (user as Record<string, unknown>)?.id)
+  const myTargets = targets.filter((t) => t.userId === user?.id)
   const activeTarget = myTargets.find((t) => {
     const now = new Date()
     return new Date(t.startDate) <= now && new Date(t.endDate) >= now
@@ -496,11 +496,11 @@ export default function DashboardPage() {
                     <div className="activity-time">
                       {formatActivityTime(activity.createdAt)}
                     </div>
-                    {activity.user.id !== (user as Record<string, unknown>)?.id && (
+                    {activity.user.id !== user?.id && (
                       <div className="activity-reactions">
                         {REACTION_TYPES.map((rt) => {
                           const hasReacted = activity.reactions?.some(
-                            (r) => r.userId === (user as Record<string, unknown>)?.id && r.reactionType === rt.value
+                            (r) => r.userId === user?.id && r.reactionType === rt.value
                           )
                           return (
                             <button

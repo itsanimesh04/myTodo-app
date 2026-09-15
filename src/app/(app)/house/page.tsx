@@ -118,7 +118,7 @@ export default function HousePage() {
     )
   }
 
-  const isOwner = house.ownerId === (user as Record<string, unknown>)?.id
+  const isOwner = house.ownerId === user?.id
   const isFull = house.members.length >= 2
 
   return (

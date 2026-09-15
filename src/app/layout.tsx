@@ -18,7 +18,7 @@ export default function RootLayout({
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#5a9e7e" />
+        <meta name="theme-color" content="#171717" />
         <script
           dangerouslySetInnerHTML={{
             __html: `

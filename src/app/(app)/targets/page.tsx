@@ -70,7 +70,7 @@ export default function TargetsPage() {
     }
   }
 
-  const userId = (user as Record<string, unknown>)?.id
+  const userId = user?.id
   const myTargets = targets.filter((t) => t.userId === userId)
   const partnerTargets = targets.filter((t) => t.userId !== userId)
   const displayTargets = activeTab === 'mine' ? myTargets : partnerTargets
