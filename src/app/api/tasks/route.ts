@@ -3,6 +3,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { createTaskSchema } from '@/lib/validations'
 import { eventBus } from '@/lib/events'
+import { generateInviteCode } from '@/lib/utils'
 
 // GET /api/tasks - list tasks for current user's house
 export async function GET(request: Request) {
@@ -18,9 +19,31 @@ export async function GET(request: Request) {
     const showPartner = searchParams.get('partner') === 'true'
 
     // Find user's house
-    const membership = await prisma.houseMember.findFirst({
+    let membership = await prisma.houseMember.findFirst({
       where: { userId },
     })
+
+    if (!membership) {
+      // Auto-create house if user has none
+      const user = await prisma.user.findUnique({ where: { id: userId } })
+      const inviteCode = generateInviteCode()
+      const house = await prisma.house.create({
+        data: {
+          name: `${user?.name ? user.name.split(' ')[0] : 'My'}'s House`,
+          ownerId: userId,
+          inviteCode,
+          members: {
+            create: {
+              userId,
+              role: 'owner',
+            },
+          },
+        },
+      })
+      membership = await prisma.houseMember.findFirst({
+        where: { userId, houseId: house.id },
+      })
+    }
 
     if (!membership) {
       return NextResponse.json({ tasks: [] })
@@ -30,6 +53,7 @@ export async function GET(request: Request) {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     const todayEnd = new Date(todayStart)
     todayEnd.setDate(todayEnd.getDate() + 1)
+    const currentDayOfWeek = now.getDay() // 0 = Sunday, 1 = Monday, etc.
 
     const weekEnd = new Date(todayStart)
     weekEnd.setDate(weekEnd.getDate() + 7)
@@ -44,17 +68,58 @@ export async function GET(request: Request) {
     if (showPartner) {
       where.userId = { not: userId }
       where.visibility = 'shared'
+      // Don't duplicate combined tasks in partner's standalone list
+      where.isCombined = { not: true }
     } else {
-      where.userId = userId
+      // For my view: show tasks I created OR combined tasks in the house
+      where.OR = [
+        { userId: userId },
+        { isCombined: true },
+      ]
     }
 
     // Apply date filters
     if (filter === 'today') {
-      where.OR = [
+      const baseOr = where.OR || []
+      const dateConditions = [
         { dueAt: { gte: todayStart, lt: todayEnd } },
         { dueAt: null, createdAt: { gte: todayStart } },
         { status: 'pending', dueAt: { lt: todayStart } }, // overdue
+        // Repeat tasks within 30 days
+        {
+          repeatType: 'daily',
+          OR: [
+            { repeatUntil: null },
+            { repeatUntil: { gte: todayStart } },
+          ],
+        },
+        {
+          repeatType: 'weekdays',
+          repeatDays: { has: currentDayOfWeek },
+          OR: [
+            { repeatUntil: null },
+            { repeatUntil: { gte: todayStart } },
+          ],
+        },
+        {
+          repeatType: 'custom',
+          repeatDays: { has: currentDayOfWeek },
+          OR: [
+            { repeatUntil: null },
+            { repeatUntil: { gte: todayStart } },
+          ],
+        },
       ]
+
+      if (showPartner) {
+        where.AND = [{ OR: dateConditions }]
+      } else {
+        where.AND = [
+          { OR: [{ userId: userId }, { isCombined: true }] },
+          { OR: dateConditions },
+        ]
+        delete where.OR
+      }
     } else if (filter === 'upcoming') {
       where.dueAt = { gte: todayEnd, lt: weekEnd }
       where.status = 'pending'
@@ -105,19 +170,57 @@ export async function POST(request: Request) {
       )
     }
 
-    // Find user's house
-    const membership = await prisma.houseMember.findFirst({
+    // Find user's house, or auto-create one
+    let membership = await prisma.houseMember.findFirst({
       where: { userId },
     })
 
     if (!membership) {
+      const user = await prisma.user.findUnique({ where: { id: userId } })
+      const inviteCode = generateInviteCode()
+      const house = await prisma.house.create({
+        data: {
+          name: `${user?.name ? user.name.split(' ')[0] : 'My'}'s House`,
+          ownerId: userId,
+          inviteCode,
+          members: {
+            create: {
+              userId,
+              role: 'owner',
+            },
+          },
+        },
+      })
+      membership = await prisma.houseMember.findFirst({
+        where: { userId, houseId: house.id },
+      })
+    }
+
+    if (!membership) {
       return NextResponse.json(
-        { error: 'You must join a house first' },
-        { status: 400 }
+        { error: 'Failed to find or create house' },
+        { status: 500 }
       )
     }
 
-    const { title, description, dueAt, priority, visibility, recurringRule } = result.data
+    const {
+      title,
+      description,
+      dueAt,
+      priority,
+      visibility,
+      recurringRule,
+      tag,
+      isCombined,
+      repeatType,
+      repeatDays,
+    } = result.data
+
+    // Repeat up to max 30 days from now
+    let calculatedRepeatUntil: Date | null = null
+    if (repeatType && repeatType !== 'none') {
+      calculatedRepeatUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+    }
 
     const task = await prisma.task.create({
       data: {
@@ -127,8 +230,14 @@ export async function POST(request: Request) {
         description: description || null,
         dueAt: dueAt ? new Date(dueAt) : null,
         priority: priority || 'none',
-        visibility: visibility || 'shared',
+        visibility: isCombined ? 'shared' : (visibility || 'shared'),
         recurringRule: recurringRule ? JSON.stringify(recurringRule) : null,
+        tag: tag || null,
+        isCombined: !!isCombined,
+        completedBy: [],
+        repeatType: repeatType || null,
+        repeatDays: repeatDays || [],
+        repeatUntil: calculatedRepeatUntil,
       },
       include: {
         user: {

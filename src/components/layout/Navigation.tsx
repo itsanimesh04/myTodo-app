@@ -15,6 +15,7 @@ import {
   Bell,
 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { getCatAvatar } from '@/lib/catAvatars'
 
 const navItems = [
   { href: '/dashboard', label: 'Home', icon: Home },
@@ -110,11 +111,7 @@ export function Navigation() {
           {user && (
             <div className="sidebar-user">
               <div className="avatar avatar-sm">
-                {user.image ? (
-                  <img src={user.image} alt={user.name || ''} />
-                ) : (
-                  getInitials(user.name || 'U')
-                )}
+                <img src={getCatAvatar(user.name, user.image)} alt={user.name || ''} />
               </div>
               <div className="sidebar-user-info">
                 <div className="sidebar-user-name">{user.name}</div>

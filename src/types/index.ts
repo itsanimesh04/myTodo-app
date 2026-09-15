@@ -22,6 +22,12 @@ export interface TaskWithUser {
   completedAt: string | null
   createdAt: string
   updatedAt: string
+  tag?: string | null
+  isCombined?: boolean
+  completedBy?: string[]
+  repeatType?: string | null
+  repeatDays?: number[]
+  repeatUntil?: string | null
   user: {
     id: string
     name: string
@@ -114,6 +120,15 @@ export interface ProgressStats {
   completionRateWeek: number
   completionRateMonth: number
   currentStreak: number
+  score: number
+}
+
+export interface MemberStreakScore {
+  userId: string
+  userName: string
+  userAvatar?: string | null
+  currentStreak: number
+  score: number
 }
 
 export interface NotificationItem {

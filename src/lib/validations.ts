@@ -29,10 +29,16 @@ export const createTaskSchema = z.object({
     frequency: z.enum(['daily', 'weekday', 'weekly', 'custom']),
     days: z.array(z.number().min(0).max(6)).optional(),
   }).optional().nullable(),
+  tag: z.string().max(50).optional().nullable(),
+  isCombined: z.boolean().optional(),
+  repeatType: z.enum(['none', 'daily', 'weekdays', 'custom']).optional().nullable(),
+  repeatDays: z.array(z.number().min(0).max(6)).optional(),
+  repeatUntil: z.string().datetime().optional().nullable(),
 })
 
 export const updateTaskSchema = createTaskSchema.partial().extend({
   status: z.enum(['pending', 'completed', 'skipped']).optional(),
+  completedBy: z.array(z.string()).optional(),
 })
 
 export const createTargetSchema = z.object({

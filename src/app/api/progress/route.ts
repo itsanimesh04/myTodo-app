@@ -60,10 +60,15 @@ export async function GET(request: Request) {
             .map((t) => t.completedAt)
             .filter(Boolean) as Date[]
 
+          const currentStreak = calculateStreak(completionDates)
+          const score = (completedTasks.length * 10) + (currentStreak * 25)
+
           return {
             userId: member.userId,
             userName: member.user.name,
-            currentStreak: calculateStreak(completionDates),
+            userAvatar: member.user.avatar,
+            currentStreak,
+            score,
           }
         })
       )
@@ -143,6 +148,8 @@ export async function GET(request: Request) {
         .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
         .slice(0, 90)
       const currentStreak = calculateStreak(completionDates)
+      const totalCompleted = memberTasks.filter((t) => t.status === 'completed').length
+      const score = (totalCompleted * 10) + (currentStreak * 25)
 
       return {
         userId: memberId,
@@ -158,6 +165,7 @@ export async function GET(request: Request) {
         completionRateWeek: totalWeek > 0 ? Math.round((completedWeek / totalWeek) * 100) : 0,
         completionRateMonth: totalMonth > 0 ? Math.round((completedMonth / totalMonth) * 100) : 0,
         currentStreak,
+        score,
       }
     })
 

@@ -18,12 +18,21 @@ export async function PATCH(
     const { id } = await params
     const userId = session.user.id
 
-    // Verify ownership
+    // Verify ownership or house membership
     const existing = await prisma.task.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
-    if (existing.userId !== userId) {
+
+    const membership = await prisma.houseMember.findFirst({
+      where: { userId, houseId: existing.houseId },
+    })
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+
+    if (!existing.isCombined && existing.userId !== userId) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 
@@ -39,7 +48,6 @@ export async function PATCH(
 
     const data = result.data
     const wasCompleted = existing.status === 'completed'
-    const isNowCompleted = data.status === 'completed'
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: any = { ...data }
@@ -49,13 +57,41 @@ export async function PATCH(
     if (data.recurringRule !== undefined) {
       updateData.recurringRule = data.recurringRule ? JSON.stringify(data.recurringRule) : null
     }
-
-    // Handle completion
-    if (!wasCompleted && isNowCompleted) {
-      updateData.completedAt = new Date()
-    } else if (wasCompleted && !isNowCompleted) {
-      updateData.completedAt = null
+    if (data.repeatUntil !== undefined) {
+      updateData.repeatUntil = data.repeatUntil ? new Date(data.repeatUntil) : null
     }
+
+    // Handle Combined Tasks logic
+    if (existing.isCombined && data.status !== undefined) {
+      const currentCompletedBy = existing.completedBy || []
+      let newCompletedBy: string[] = []
+
+      if (data.status === 'completed') {
+        newCompletedBy = Array.from(new Set([...currentCompletedBy, userId]))
+      } else {
+        newCompletedBy = currentCompletedBy.filter((uid) => uid !== userId)
+      }
+
+      const houseMembersCount = await prisma.houseMember.count({
+        where: { houseId: existing.houseId },
+      })
+      const requiredCount = Math.max(1, houseMembersCount)
+      const allCompleted = newCompletedBy.length >= requiredCount
+
+      updateData.completedBy = newCompletedBy
+      updateData.status = allCompleted ? 'completed' : 'pending'
+      updateData.completedAt = allCompleted ? new Date() : null
+    } else if (data.status !== undefined) {
+      // Normal task completion
+      const isNowCompleted = data.status === 'completed'
+      if (!wasCompleted && isNowCompleted) {
+        updateData.completedAt = new Date()
+      } else if (wasCompleted && !isNowCompleted) {
+        updateData.completedAt = null
+      }
+    }
+
+    const isNowCompleted = updateData.status === 'completed'
 
     const task = await prisma.task.update({
       where: { id },
@@ -113,7 +149,15 @@ export async function DELETE(
     if (!existing) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 })
     }
-    if (existing.userId !== userId) {
+
+    const membership = await prisma.houseMember.findFirst({
+      where: { userId, houseId: existing.houseId },
+    })
+    if (!membership) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+
+    if (!existing.isCombined && existing.userId !== userId) {
       return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
     }
 

@@ -9,28 +9,66 @@ import {
   Clock,
   TrendingUp,
   Sparkles,
+  MoreVertical,
+  Edit2,
+  Trash2,
+  Star,
+  Users2,
+  X,
+  Tag as TagIcon,
 } from 'lucide-react'
-import { getGreeting, formatDate, isOverdue, getInitials, getAccountabilityMessage } from '@/lib/utils'
-import { MOTIVATIONAL_SUBTITLES, REACTION_TYPES } from '@/lib/constants'
+import { getGreeting, formatDate, isOverdue, getAccountabilityMessage } from '@/lib/utils'
+import { MOTIVATIONAL_SUBTITLES, REACTION_TYPES, TASK_PRIORITIES } from '@/lib/constants'
+import { getCatAvatar, getTagInfo, PREDEFINED_TAGS } from '@/lib/catAvatars'
+import { useToast } from '@/components/ui/ToastProvider'
 import { useRealTime } from '@/hooks/useRealTime'
-import type { TaskWithUser, ActivityWithDetails, TargetWithUser } from '@/types'
+import type { TaskWithUser, ActivityWithDetails, TargetWithUser, MemberStreakScore } from '@/types'
 
 export default function DashboardPage() {
   const { data: session } = useSession()
   const user = session?.user
   const houseId = user?.houseId
+  const { addToast } = useToast()
 
   const [myTasks, setMyTasks] = useState<TaskWithUser[]>([])
   const [partnerTasks, setPartnerTasks] = useState<TaskWithUser[]>([])
   const [activities, setActivities] = useState<ActivityWithDetails[]>([])
   const [targets, setTargets] = useState<TargetWithUser[]>([])
   const [streak, setStreak] = useState(0)
+  const [myScore, setMyScore] = useState(0)
+  const [partnerScore, setPartnerScore] = useState(0)
+  const [partnerStreak, setPartnerStreak] = useState(0)
   const [loading, setLoading] = useState(true)
+
+  // Quick Add Form State
   const [newTask, setNewTask] = useState('')
+  const [selectedTag, setSelectedTag] = useState('')
+  const [isCombinedTask, setIsCombinedTask] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // 3-Dots Menu & Edit Modal State
+  const [activeMenuTaskId, setActiveMenuTaskId] = useState<string | null>(null)
+  const [editingTask, setEditingTask] = useState<TaskWithUser | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editTag, setEditTag] = useState('')
+  const [editPriority, setEditPriority] = useState('none')
+  const [editDueAt, setEditDueAt] = useState('')
+  const [editIsCombined, setEditIsCombined] = useState(false)
 
   const subtitle = MOTIVATIONAL_SUBTITLES[
     new Date().getDate() % MOTIVATIONAL_SUBTITLES.length
   ]
+
+  // Close 3-dots menu on outside click
+  useEffect(() => {
+    function handleClickOutside() {
+      setActiveMenuTaskId(null)
+    }
+    if (activeMenuTaskId) {
+      document.addEventListener('click', handleClickOutside)
+      return () => document.removeEventListener('click', handleClickOutside)
+    }
+  }, [activeMenuTaskId])
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -69,37 +107,44 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const fetchStreak = useCallback(async () => {
+  const fetchStreakAndScores = useCallback(async () => {
     try {
       const res = await fetch('/api/progress?fields=streak')
       const data = await res.json()
       if (data.stats?.members) {
-        const me = data.stats.members.find(
-          (m: { userId: string }) => m.userId === user?.id
-        )
-        if (me) setStreak(me.currentStreak)
+        const members: MemberStreakScore[] = data.stats.members
+        const me = members.find((m) => m.userId === user?.id)
+        if (me) {
+          setStreak(me.currentStreak)
+          setMyScore(me.score || 0)
+        }
+        const partner = members.find((m) => m.userId !== user?.id)
+        if (partner) {
+          setPartnerStreak(partner.currentStreak)
+          setPartnerScore(partner.score || 0)
+        }
       }
     } catch (e) {
-      console.error('Failed to fetch streak:', e)
+      console.error('Failed to fetch streak & scores:', e)
     }
   }, [user])
 
   // Initial load
   useEffect(() => {
     async function loadAll() {
-      await Promise.all([fetchTasks(), fetchActivity(), fetchTargets(), fetchStreak()])
+      await Promise.all([fetchTasks(), fetchActivity(), fetchTargets(), fetchStreakAndScores()])
       setLoading(false)
     }
     loadAll()
-  }, [fetchTasks, fetchActivity, fetchTargets, fetchStreak])
+  }, [fetchTasks, fetchActivity, fetchTargets, fetchStreakAndScores])
 
-  // Real-time updates — selective refetch per event type, debounced
+  // Real-time updates
   useRealTime(
     {
       task_updated: () => fetchTasks(),
       task_completed: () => {
         fetchTasks()
-        fetchStreak()
+        fetchStreakAndScores()
       },
       target_updated: () => fetchTargets(),
       activity_new: () => fetchActivity(),
@@ -110,8 +155,9 @@ export default function DashboardPage() {
 
   async function handleQuickAdd(e: React.FormEvent) {
     e.preventDefault()
-    if (!newTask.trim()) return
+    if (!newTask.trim() || isSubmitting) return
 
+    setIsSubmitting(true)
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST',
@@ -119,30 +165,105 @@ export default function DashboardPage() {
         body: JSON.stringify({
           title: newTask.trim(),
           dueAt: new Date().toISOString(),
+          tag: selectedTag || null,
+          isCombined: isCombinedTask,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        setNewTask('')
+        setSelectedTag('')
+        setIsCombinedTask(false)
+        addToast(isCombinedTask ? 'Combined task added!' : 'Task added!')
+        fetchTasks()
+      } else {
+        addToast(data.error || 'Failed to create task', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to create task:', e)
+      addToast('Something went wrong. Please try again.', 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function toggleTask(task: TaskWithUser) {
+    const isUserDone = task.isCombined
+      ? task.completedBy?.includes(user?.id || '')
+      : task.status === 'completed'
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: isUserDone ? 'pending' : 'completed',
         }),
       })
 
       if (res.ok) {
-        setNewTask('')
         fetchTasks()
+        fetchStreakAndScores()
       }
     } catch (e) {
-      console.error('Failed to create task:', e)
+      console.error('Failed to toggle task:', e)
     }
   }
 
-  async function toggleTask(taskId: string, completed: boolean) {
+  async function deleteTask(taskId: string) {
+    if (!confirm('Are you sure you want to delete this task?')) return
     try {
-      await fetch(`/api/tasks/${taskId}`, {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' })
+      if (res.ok) {
+        addToast('Task deleted')
+        fetchTasks()
+      } else {
+        const data = await res.json()
+        addToast(data.error || 'Failed to delete task', 'error')
+      }
+    } catch (e) {
+      console.error('Failed to delete task:', e)
+    }
+  }
+
+  function openEditModal(task: TaskWithUser) {
+    setEditingTask(task)
+    setEditTitle(task.title)
+    setEditTag(task.tag || '')
+    setEditPriority(task.priority || 'none')
+    setEditDueAt(task.dueAt ? new Date(task.dueAt).toISOString().slice(0, 16) : '')
+    setEditIsCombined(!!task.isCombined)
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingTask || !editTitle.trim()) return
+
+    try {
+      const res = await fetch(`/api/tasks/${editingTask.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: completed ? 'pending' : 'completed',
+          title: editTitle.trim(),
+          tag: editTag || null,
+          priority: editPriority,
+          dueAt: editDueAt ? new Date(editDueAt).toISOString() : null,
+          isCombined: editIsCombined,
         }),
       })
-      fetchTasks()
+
+      if (res.ok) {
+        addToast('Task updated')
+        setEditingTask(null)
+        fetchTasks()
+      } else {
+        const data = await res.json()
+        addToast(data.error || 'Failed to update task', 'error')
+      }
     } catch (e) {
-      console.error('Failed to toggle task:', e)
+      console.error('Failed to update task:', e)
     }
   }
 
@@ -200,7 +321,56 @@ export default function DashboardPage() {
         <p className="page-subtitle">{formatDate(new Date())} · {subtitle}</p>
       </div>
 
-      {/* Quick Stats */}
+      {/* Dual Partner Scoreboard & Cute Cat Avatars */}
+      <div className="dual-scoreboard">
+        {/* User Card */}
+        <div className="member-score-card">
+          <div className="member-cat-avatar">
+            <img src={getCatAvatar(user?.name, user?.image)} alt={user?.name || 'You'} />
+          </div>
+          <div className="member-score-info">
+            <div className="member-score-name">{user?.name} (You)</div>
+            <div className="member-score-stats">
+              <span className="stat-pill" style={{ color: 'var(--color-warning)' }}>
+                <Flame size={15} /> {streak}d streak
+              </span>
+              <span className="stat-pill" style={{ color: 'var(--colors-link)' }}>
+                <Star size={15} /> {myScore} pts
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Partner Card */}
+        <div className="member-score-card">
+          <div className="member-cat-avatar">
+            <img src={getCatAvatar(partnerUser?.name, partnerUser?.avatar)} alt={partnerUser?.name || 'Partner'} />
+          </div>
+          <div className="member-score-info">
+            <div className="member-score-name">
+              {partnerUser ? partnerUser.name : 'Accountability Partner'}
+            </div>
+            <div className="member-score-stats">
+              {partnerUser ? (
+                <>
+                  <span className="stat-pill" style={{ color: 'var(--color-warning)' }}>
+                    <Flame size={15} /> {partnerStreak}d streak
+                  </span>
+                  <span className="stat-pill" style={{ color: 'var(--colors-link)' }}>
+                    <Star size={15} /> {partnerScore} pts
+                  </span>
+                </>
+              ) : (
+                <a href="/house" className="text-sm" style={{ color: 'var(--colors-link)', textDecoration: 'underline' }}>
+                  Invite partner to link streaks!
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Stats Grid */}
       <div className="stats-grid section">
         <div className="card stat-card">
           <div className="stat-value">{myCompleted}/{myTotal}</div>
@@ -229,7 +399,7 @@ export default function DashboardPage() {
 
       {/* My Day */}
       <section className="section">
-        <div className="section-header">
+        <div className="section-header flex justify-between items-center">
           <h2 className="section-title">
             My Day
             {myTotal > 0 && (
@@ -243,65 +413,178 @@ export default function DashboardPage() {
             <div className="empty-state">
               <CheckCircle2 className="empty-state-icon" />
               <p className="empty-state-title">Nothing planned yet</p>
-              <p className="empty-state-description">Add your first task and get moving.</p>
+              <p className="empty-state-description">Add your first task and stay accountable.</p>
             </div>
           ) : (
             <div>
-              {myTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`task-item ${task.status === 'completed' ? 'completed' : ''}`}
-                >
-                  <div className="checkbox-wrapper">
-                    <input
-                      type="checkbox"
-                      checked={task.status === 'completed'}
-                      onChange={() => toggleTask(task.id, task.status === 'completed')}
-                      aria-label={`Mark "${task.title}" as ${task.status === 'completed' ? 'pending' : 'completed'}`}
-                    />
-                    <div className="checkbox-visual">
-                      <svg viewBox="0 0 14 14" fill="none">
-                        <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+              {myTasks.map((task) => {
+                const isUserDone = task.isCombined
+                  ? task.completedBy?.includes(user?.id || '')
+                  : task.status === 'completed'
+                const tagInfo = getTagInfo(task.tag)
+
+                return (
+                  <div
+                    key={task.id}
+                    className={`task-item ${task.status === 'completed' ? 'completed' : ''}`}
+                  >
+                    <div className="checkbox-wrapper">
+                      <input
+                        type="checkbox"
+                        checked={!!isUserDone}
+                        onChange={() => toggleTask(task)}
+                        aria-label={`Mark "${task.title}" as ${isUserDone ? 'pending' : 'completed'}`}
+                      />
+                      <div className="checkbox-visual">
+                        <svg viewBox="0 0 14 14" fill="none">
+                          <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="task-content">
+                      <div className="flex items-center gap-sm" style={{ flexWrap: 'wrap' }}>
+                        <span className="task-title">{task.title}</span>
+                        {task.isCombined && (
+                          <span className="combined-badge" title="Both must complete this task">
+                            <Users2 size={11} /> Combined
+                          </span>
+                        )}
+                        {tagInfo && (
+                          <span
+                            className="tag-badge"
+                            style={{
+                              background: tagInfo.bg,
+                              color: tagInfo.color,
+                              borderColor: tagInfo.color + '40',
+                            }}
+                          >
+                            <span>{tagInfo.emoji}</span>
+                            {tagInfo.label}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="task-meta">
+                        {task.isCombined && (
+                          <span className="combined-status-badge">
+                            {task.status === 'completed'
+                              ? '🎉 Completed together!'
+                              : `${(task.completedBy || []).length}/2 finished · Both required`}
+                          </span>
+                        )}
+
+                        {task.priority !== 'none' && (
+                          <span
+                            className="task-priority-dot"
+                            style={{
+                              background:
+                                task.priority === 'high' ? 'var(--color-priority-high)' :
+                                task.priority === 'medium' ? 'var(--color-priority-medium)' :
+                                'var(--color-priority-low)',
+                            }}
+                            title={`${task.priority} priority`}
+                          />
+                        )}
+
+                        {task.dueAt && isOverdue(task.dueAt) && task.status !== 'completed' && (
+                          <span className="task-tag overdue">
+                            <Clock size={10} /> Overdue
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3-Dots Action Menu */}
+                    <div className="task-menu-container" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className={`task-menu-trigger ${activeMenuTaskId === task.id ? 'active' : ''}`}
+                        onClick={() => setActiveMenuTaskId(activeMenuTaskId === task.id ? null : task.id)}
+                        aria-label="Task options"
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+
+                      {activeMenuTaskId === task.id && (
+                        <div className="task-menu-dropdown">
+                          <button
+                            type="button"
+                            className="task-menu-item"
+                            onClick={() => {
+                              setActiveMenuTaskId(null)
+                              openEditModal(task)
+                            }}
+                          >
+                            <Edit2 size={14} /> Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="task-menu-item danger"
+                            onClick={() => {
+                              setActiveMenuTaskId(null)
+                              deleteTask(task.id)
+                            }}
+                          >
+                            <Trash2 size={14} /> Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="task-content">
-                    <span className="task-title">{task.title}</span>
-                    <div className="task-meta">
-                      {task.priority !== 'none' && (
-                        <span
-                          className="task-priority-dot"
-                          style={{
-                            background:
-                              task.priority === 'high' ? 'var(--color-priority-high)' :
-                              task.priority === 'medium' ? 'var(--color-priority-medium)' :
-                              'var(--color-priority-low)',
-                          }}
-                          title={`${task.priority} priority`}
-                        />
-                      )}
-                      {task.dueAt && isOverdue(task.dueAt) && task.status !== 'completed' && (
-                        <span className="task-tag overdue">
-                          <Clock size={10} /> Overdue
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
-          {/* Quick add */}
-          <form onSubmit={handleQuickAdd} className="quick-task mt-lg">
-            <Plus size={18} className="quick-task-icon" />
-            <input
-              type="text"
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
-              placeholder="Add a task..."
-              aria-label="Quick add task"
-            />
+          {/* Quick add with real phone/mobile button & tag selection */}
+          <form onSubmit={handleQuickAdd} className="mt-lg">
+            <div className="quick-task">
+              <Plus size={18} className="quick-task-icon" />
+              <input
+                type="text"
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="Add a task for today..."
+                aria-label="Quick add task"
+              />
+              <button
+                type="submit"
+                className="quick-add-btn"
+                disabled={!newTask.trim() || isSubmitting}
+                aria-label="Create task"
+              >
+                <Plus size={14} /> Add
+              </button>
+            </div>
+
+            {/* Quick Tag Selector & Combined Switch */}
+            <div className="flex items-center justify-between mt-sm" style={{ flexWrap: 'wrap', gap: '8px' }}>
+              <div className="tag-selector">
+                {PREDEFINED_TAGS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`tag-selector-btn ${selectedTag === t.label ? 'selected' : ''}`}
+                    onClick={() => setSelectedTag(selectedTag === t.label ? '' : t.label)}
+                  >
+                    <span>{t.emoji}</span> {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {partnerUser && (
+                <label className="flex items-center gap-xs text-xs cursor-pointer" style={{ color: 'var(--colors-body)' }}>
+                  <input
+                    type="checkbox"
+                    checked={isCombinedTask}
+                    onChange={(e) => setIsCombinedTask(e.target.checked)}
+                    style={{ width: 'auto', height: 'auto' }}
+                  />
+                  <span>Dual/Combined Task</span>
+                </label>
+              )}
+            </div>
           </form>
         </div>
       </section>
@@ -321,11 +604,7 @@ export default function DashboardPage() {
           <div className="partner-section">
             <div className="partner-header">
               <div className="avatar avatar-sm">
-                {partnerUser.avatar ? (
-                  <img src={partnerUser.avatar} alt={partnerUser.name} />
-                ) : (
-                  getInitials(partnerUser.name)
-                )}
+                <img src={getCatAvatar(partnerUser.name, partnerUser.avatar)} alt={partnerUser.name} />
               </div>
               <div>
                 <div className="partner-name">{partnerUser.name}</div>
@@ -338,36 +617,56 @@ export default function DashboardPage() {
                 No tasks shared for today.
               </p>
             ) : (
-              partnerTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`task-item ${task.status === 'completed' ? 'completed' : ''}`}
-                >
-                  <div className="checkbox-wrapper" style={{ pointerEvents: 'none' }}>
-                    <input
-                      type="checkbox"
-                      checked={task.status === 'completed'}
-                      readOnly
-                      tabIndex={-1}
-                    />
-                    <div className="checkbox-visual">
-                      <svg viewBox="0 0 14 14" fill="none">
-                        <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+              partnerTasks.map((task) => {
+                const tagInfo = getTagInfo(task.tag)
+                return (
+                  <div
+                    key={task.id}
+                    className={`task-item ${task.status === 'completed' ? 'completed' : ''}`}
+                  >
+                    <div className="checkbox-wrapper" style={{ pointerEvents: 'none' }}>
+                      <input
+                        type="checkbox"
+                        checked={task.status === 'completed'}
+                        readOnly
+                        tabIndex={-1}
+                      />
+                      <div className="checkbox-visual">
+                        <svg viewBox="0 0 14 14" fill="none">
+                          <path d="M3 7L6 10L11 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <div className="task-content">
+                      <div className="flex items-center gap-sm">
+                        <span className="task-title">{task.title}</span>
+                        {tagInfo && (
+                          <span
+                            className="tag-badge"
+                            style={{
+                              background: tagInfo.bg,
+                              color: tagInfo.color,
+                              borderColor: tagInfo.color + '40',
+                            }}
+                          >
+                            <span>{tagInfo.emoji}</span>
+                            {tagInfo.label}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="task-meta">
+                        {task.dueAt && isOverdue(task.dueAt) && task.status !== 'completed' && (
+                          <span className="task-tag overdue">
+                            <Clock size={10} /> Overdue
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="task-content">
-                    <span className="task-title">{task.title}</span>
-                    <div className="task-meta">
-                      {task.dueAt && isOverdue(task.dueAt) && task.status !== 'completed' && (
-                        <span className="task-tag overdue">
-                          <Clock size={10} /> Overdue
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </section>
@@ -378,21 +677,21 @@ export default function DashboardPage() {
           <div className="card">
             <div className="empty-state">
               <Sparkles className="empty-state-icon" />
-              <p className="empty-state-title">Your House is waiting for someone</p>
-              <p className="empty-state-description">Invite your accountability partner to see their progress here.</p>
-              <a href="/house" className="btn btn-primary btn-sm">Go to House</a>
+              <p className="empty-state-title">Your House is waiting for your partner</p>
+              <p className="empty-state-description">Invite your partner to connect streaks, scores, and shared combined to-dos!</p>
+              <a href="/house" className="btn btn-primary btn-sm">Go to House & Invite</a>
             </div>
           </div>
         </section>
       )}
 
-      {/* Accountability */}
+      {/* Accountability Rate */}
       {partnerUser && (
         <section className="section">
           <div className="section-header">
             <h2 className="section-title">
               <TrendingUp size={18} />
-              Accountability
+              Accountability Synergy
             </h2>
           </div>
 
@@ -468,11 +767,7 @@ export default function DashboardPage() {
               {activities.slice(0, 8).map((activity) => (
                 <div key={activity.id} className="activity-item">
                   <div className="avatar avatar-sm">
-                    {activity.user.avatar ? (
-                      <img src={activity.user.avatar} alt={activity.user.name} />
-                    ) : (
-                      getInitials(activity.user.name)
-                    )}
+                    <img src={getCatAvatar(activity.user.name, activity.user.avatar)} alt={activity.user.name} />
                   </div>
                   <div className="activity-content">
                     <div className="activity-text">
@@ -520,6 +815,107 @@ export default function DashboardPage() {
             </div>
           </div>
         </section>
+      )}
+
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <div className="modal-overlay" onClick={() => setEditingTask(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Edit Task</h3>
+              <button className="btn-icon" onClick={() => setEditingTask(null)} aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit}>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label htmlFor="edit-task-title">Task Title</label>
+                  <input
+                    id="edit-task-title"
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    required
+                    maxLength={200}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Tag</label>
+                  <div className="tag-selector">
+                    {PREDEFINED_TAGS.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`tag-selector-btn ${editTag === t.label ? 'selected' : ''}`}
+                        onClick={() => setEditTag(editTag === t.label ? '' : t.label)}
+                      >
+                        <span>{t.emoji}</span> {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-xs">
+                    <input
+                      type="text"
+                      value={editTag}
+                      onChange={(e) => setEditTag(e.target.value)}
+                      placeholder="Or type custom tag (e.g., Reading)..."
+                      maxLength={30}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit-task-priority">Priority</label>
+                  <select
+                    id="edit-task-priority"
+                    value={editPriority}
+                    onChange={(e) => setEditPriority(e.target.value)}
+                  >
+                    {TASK_PRIORITIES.map((p) => (
+                      <option key={p.value} value={p.value}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="edit-task-due">Due Date</label>
+                  <input
+                    id="edit-task-due"
+                    type="datetime-local"
+                    value={editDueAt}
+                    onChange={(e) => setEditDueAt(e.target.value)}
+                  />
+                </div>
+
+                {partnerUser && (
+                  <div className="form-group">
+                    <label className="flex items-center gap-xs cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editIsCombined}
+                        onChange={(e) => setEditIsCombined(e.target.checked)}
+                        style={{ width: 'auto', height: 'auto' }}
+                      />
+                      <span>Combined Task (Both partners must complete to finish)</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setEditingTask(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   )

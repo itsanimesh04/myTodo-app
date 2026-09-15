@@ -7,6 +7,7 @@ import { Settings, User, Palette, Bell, Home, LogOut } from 'lucide-react'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { useToast } from '@/components/ui/ToastProvider'
 import { getInitials } from '@/lib/utils'
+import { CAT_AVATARS, getCatAvatar } from '@/lib/catAvatars'
 
 type Tab = 'account' | 'appearance' | 'notifications' | 'house'
 
@@ -18,6 +19,7 @@ export default function SettingsPage() {
 
   const [activeTab, setActiveTab] = useState<Tab>('account')
   const [name, setName] = useState('')
+  const [selectedAvatar, setSelectedAvatar] = useState('')
   const [loading, setLoading] = useState(false)
 
   // Notification preferences (persisted in localStorage)
@@ -54,7 +56,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (user?.name) setName(user.name)
-  }, [user?.name])
+    if (user?.image) setSelectedAvatar(user.image)
+  }, [user?.name, user?.image])
 
   async function handleUpdateProfile(e: React.FormEvent) {
     e.preventDefault()
@@ -65,12 +68,16 @@ export default function SettingsPage() {
       const res = await fetch('/api/user', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({
+          name: name.trim(),
+          avatar: selectedAvatar || null,
+        }),
       })
 
       if (res.ok) {
         addToast('Profile updated')
-        update({ name: name.trim() })
+        await update({ name: name.trim(), image: selectedAvatar || null })
+        router.refresh()
       } else {
         addToast('Failed to update profile', 'error')
       }
@@ -85,12 +92,14 @@ export default function SettingsPage() {
     { key: 'account', label: 'Account', icon: User },
     { key: 'appearance', label: 'Appearance', icon: Palette },
     { key: 'notifications', label: 'Notifications', icon: Bell },
+    { key: 'house', label: 'House', icon: Home },
   ]
 
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">Settings</h1>
+        <p className="page-subtitle">Manage your account and preferences</p>
       </div>
 
       <div className="tabs">
@@ -109,15 +118,14 @@ export default function SettingsPage() {
       {activeTab === 'account' && (
         <div className="card">
           <div className="settings-section">
-            <h3>Profile</h3>
+            <h3>Profile & Cat Avatar</h3>
 
             <div className="flex items-center gap-xl mb-xl">
-              <div className="avatar avatar-xl">
-                {user?.image ? (
-                  <img src={user.image} alt={user.name || ''} />
-                ) : (
-                  getInitials(user?.name || 'U')
-                )}
+              <div className="avatar avatar-xl" style={{ border: '2px solid var(--colors-hairline)' }}>
+                <img
+                  src={selectedAvatar || getCatAvatar(user?.name, user?.image)}
+                  alt={user?.name || ''}
+                />
               </div>
               <div>
                 <p className="font-medium">{user?.name}</p>
@@ -126,6 +134,40 @@ export default function SettingsPage() {
             </div>
 
             <form onSubmit={handleUpdateProfile}>
+              <div className="form-group mb-lg">
+                <label>Choose Your Cute Cat Avatar</label>
+                <div className="flex gap-sm" style={{ flexWrap: 'wrap', marginTop: '6px' }}>
+                  {CAT_AVATARS.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSelectedAvatar(cat.url)}
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: '50%',
+                        border:
+                          selectedAvatar === cat.url ||
+                          (!selectedAvatar && getCatAvatar(user?.name) === cat.url)
+                            ? '3px solid var(--colors-ink)'
+                            : '2px solid var(--colors-hairline)',
+                        padding: 2,
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        transition: 'transform 0.1s ease',
+                      }}
+                      title={cat.name}
+                    >
+                      <img
+                        src={cat.url}
+                        alt={cat.name}
+                        style={{ width: '100%', height: '100%', borderRadius: '50%' }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="form-group mb-lg">
                 <label htmlFor="settings-name">Name</label>
                 <input
