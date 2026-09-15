@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  avatar       String?
+  theme        String   @default("system")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  houseMembers  HouseMember[]
+  ownedHouses   House[]         @relation("HouseOwner")
+  invitations   Invitation[]    @relation("Inviter")
+  tasks         Task[]
+  targets       Target[]
+  activities    Activity[]
+  reactions     Reaction[]
+  notifications Notification[]
+}
+
+model House {
+  id         String   @id @default(cuid())
+  name       String
+  ownerId    String
+  inviteCode String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  owner         User           @relation("HouseOwner", fields: [ownerId], references: [id])
+  members       HouseMember[]
+  invitations   Invitation[]
+  tasks         Task[]
+  targets       Target[]
+  activities    Activity[]
+  notifications Notification[]
+}
+
+model HouseMember {
+  id       String   @id @default(cuid())
+  houseId  String
+  userId   String
+  role     String   @default("member")
+  joinedAt DateTime @default(now())
+
+  house House @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([houseId, userId])
+}
+
+model Invitation {
+  id        String   @id @default(cuid())
+  houseId   String
+  inviterId String
+  code      String   @unique
+  status    String   @default("pending")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  house   House @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  inviter User  @relation("Inviter", fields: [inviterId], references: [id])
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  houseId       String
+  userId        String
+  title         String
+  description   String?
+  dueAt         DateTime?
+  priority      String    @default("none")
+  status        String    @default("pending")
+  visibility    String    @default("shared")
+  recurringRule String?
+  parentTaskId  String?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  house      House      @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities Activity[] @relation("TaskActivity")
+}
+
+model Target {
+  id           String   @id @default(cuid())
+  houseId      String
+  userId       String
+  title        String
+  description  String?
+  targetType   String   @default("tasks_completed")
+  targetValue  Int
+  currentValue Int      @default(0)
+  period       String
+  startDate    DateTime
+  endDate      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  house      House      @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities Activity[] @relation("TargetActivity")
+}
+
+model Activity {
+  id              String   @id @default(cuid())
+  houseId         String
+  userId          String
+  type            String
+  relatedTaskId   String?
+  relatedTargetId String?
+  metadata        String?
+  createdAt       DateTime @default(now())
+
+  house     House     @relation(fields: [houseId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task      Task?     @relation("TaskActivity", fields: [relatedTaskId], references: [id], onDelete: SetNull)
+  target    Target?   @relation("TargetActivity", fields: [relatedTargetId], references: [id], onDelete: SetNull)
+  reactions Reaction[]
+}
+
+model Reaction {
+  id           String   @id @default(cuid())
+  activityId   String
+  userId       String
+  reactionType String
+  createdAt    DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, userId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  houseId   String?
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  relatedId String?
+  createdAt DateTime @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  house House? @relation(fields: [houseId], references: [id], onDelete: Cascade)
+}
