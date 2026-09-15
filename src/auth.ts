@@ -56,17 +56,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id
+        token.picture = user.image
         token.theme = user.theme as string | undefined
         token.houseId = user.houseId as string | null | undefined
         token.houseName = user.houseName as string | null | undefined
       }
 
-      // Handle session updates (e.g., after joining a house)
+      // Handle session updates (e.g., after joining a house or updating profile pic)
       if (trigger === 'update' && session) {
         if (session.houseId !== undefined) token.houseId = session.houseId
         if (session.houseName !== undefined) token.houseName = session.houseName
         if (session.theme !== undefined) token.theme = session.theme
         if (session.name !== undefined) token.name = session.name
+        if (session.image !== undefined) token.picture = session.image
+        if (session.avatar !== undefined) token.picture = session.avatar
       }
 
       return token
@@ -77,6 +80,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.theme = token.theme as string | undefined
         session.user.houseId = token.houseId as string | null | undefined
         session.user.houseName = token.houseName as string | null | undefined
+        if (token.picture) {
+          session.user.image = token.picture as string
+        }
       }
       return session
     },

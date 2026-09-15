@@ -36,8 +36,10 @@ export default function DashboardPage() {
   const [targets, setTargets] = useState<TargetWithUser[]>([])
   const [streak, setStreak] = useState(0)
   const [myScore, setMyScore] = useState(0)
+  const [myAvatar, setMyAvatar] = useState<string | null>(null)
   const [partnerScore, setPartnerScore] = useState(0)
   const [partnerStreak, setPartnerStreak] = useState(0)
+  const [partnerAvatar, setPartnerAvatar] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Quick Add Form State
@@ -117,11 +119,13 @@ export default function DashboardPage() {
         if (me) {
           setStreak(me.currentStreak)
           setMyScore(me.score || 0)
+          if (me.userAvatar) setMyAvatar(me.userAvatar)
         }
         const partner = members.find((m) => m.userId !== user?.id)
         if (partner) {
           setPartnerStreak(partner.currentStreak)
           setPartnerScore(partner.score || 0)
+          if (partner.userAvatar) setPartnerAvatar(partner.userAvatar)
         }
       }
     } catch (e) {
@@ -326,7 +330,7 @@ export default function DashboardPage() {
         {/* User Card */}
         <div className="member-score-card">
           <div className="member-cat-avatar">
-            <img src={getCatAvatar(user?.name, user?.image)} alt={user?.name || 'You'} />
+            <img src={getCatAvatar(user?.name, myAvatar || user?.image)} alt={user?.name || 'You'} />
           </div>
           <div className="member-score-info">
             <div className="member-score-name">{user?.name} (You)</div>
@@ -344,7 +348,7 @@ export default function DashboardPage() {
         {/* Partner Card */}
         <div className="member-score-card">
           <div className="member-cat-avatar">
-            <img src={getCatAvatar(partnerUser?.name, partnerUser?.avatar)} alt={partnerUser?.name || 'Partner'} />
+            <img src={getCatAvatar(partnerUser?.name, partnerAvatar || partnerUser?.avatar)} alt={partnerUser?.name || 'Partner'} />
           </div>
           <div className="member-score-info">
             <div className="member-score-name">
@@ -604,7 +608,7 @@ export default function DashboardPage() {
           <div className="partner-section">
             <div className="partner-header">
               <div className="avatar avatar-sm">
-                <img src={getCatAvatar(partnerUser.name, partnerUser.avatar)} alt={partnerUser.name} />
+                <img src={getCatAvatar(partnerUser.name, partnerAvatar || partnerUser.avatar)} alt={partnerUser.name} />
               </div>
               <div>
                 <div className="partner-name">{partnerUser.name}</div>

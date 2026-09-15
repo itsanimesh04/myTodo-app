@@ -57,6 +57,20 @@ export default function SettingsPage() {
   useEffect(() => {
     if (user?.name) setName(user.name)
     if (user?.image) setSelectedAvatar(user.image)
+
+    async function loadFreshUser() {
+      try {
+        const res = await fetch('/api/user')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.user?.name) setName(data.user.name)
+          if (data.user?.avatar) setSelectedAvatar(data.user.avatar)
+        }
+      } catch (e) {
+        console.error('Failed to load fresh user data:', e)
+      }
+    }
+    loadFreshUser()
   }, [user?.name, user?.image])
 
   async function handleUpdateProfile(e: React.FormEvent) {
@@ -76,7 +90,11 @@ export default function SettingsPage() {
 
       if (res.ok) {
         addToast('Profile updated')
-        await update({ name: name.trim(), image: selectedAvatar || null })
+        await update({
+          name: name.trim(),
+          image: selectedAvatar || null,
+          avatar: selectedAvatar || null,
+        })
         router.refresh()
       } else {
         addToast('Failed to update profile', 'error')
