@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Users, Copy, RefreshCw, LogOut, Crown, Check } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { getCatAvatar } from '@/lib/catAvatars'
 import { useToast } from '@/components/ui/ToastProvider'
 import type { HouseWithMembers } from '@/types'
 
@@ -169,11 +170,10 @@ export default function HousePage() {
             {house.members.map((member) => (
               <div key={member.id} className="house-member">
                 <div className="avatar avatar-lg">
-                  {member.user.avatar ? (
-                    <img src={member.user.avatar} alt={member.user.name} />
-                  ) : (
-                    getInitials(member.user.name)
-                  )}
+                  <img
+                    src={getCatAvatar(member.user.name, member.user.avatar)}
+                    alt={member.user.name}
+                  />
                 </div>
                 <div className="house-member-info">
                   <div className="house-member-name">

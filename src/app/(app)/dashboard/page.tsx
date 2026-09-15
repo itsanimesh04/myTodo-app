@@ -34,6 +34,8 @@ export default function DashboardPage() {
   const [partnerTasks, setPartnerTasks] = useState<TaskWithUser[]>([])
   const [activities, setActivities] = useState<ActivityWithDetails[]>([])
   const [targets, setTargets] = useState<TargetWithUser[]>([])
+  const [house, setHouse] = useState<any>(null)
+  const [partnerUser, setPartnerUser] = useState<{ id: string; name: string; avatar: string | null } | null>(null)
   const [streak, setStreak] = useState(0)
   const [myScore, setMyScore] = useState(0)
   const [myAvatar, setMyAvatar] = useState<string | null>(null)
@@ -71,6 +73,37 @@ export default function DashboardPage() {
       return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [activeMenuTaskId])
+
+  const fetchHouse = useCallback(async () => {
+    try {
+      const res = await fetch('/api/house')
+      if (res.ok) {
+        const data = await res.json()
+        setHouse(data.house)
+        if (data.house?.members) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const meMember = data.house.members.find((m: any) => m.userId === user?.id)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const partnerMember = data.house.members.find((m: any) => m.userId !== user?.id)
+
+          if (meMember?.user?.avatar) {
+            setMyAvatar(meMember.user.avatar)
+          }
+          if (partnerMember?.user) {
+            setPartnerUser(partnerMember.user)
+            if (partnerMember.user.avatar) {
+              setPartnerAvatar(partnerMember.user.avatar)
+            }
+          } else {
+            setPartnerUser(null)
+            setPartnerAvatar(null)
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch house:', e)
+    }
+  }, [user?.id])
 
   const fetchTasks = useCallback(async () => {
     try {
@@ -126,12 +159,19 @@ export default function DashboardPage() {
           setPartnerStreak(partner.currentStreak)
           setPartnerScore(partner.score || 0)
           if (partner.userAvatar) setPartnerAvatar(partner.userAvatar)
+          if (partner.userName) {
+            setPartnerUser((prev) =>
+              prev
+                ? { ...prev, name: partner.userName, avatar: partner.userAvatar ?? prev.avatar }
+                : { id: partner.userId, name: partner.userName, avatar: partner.userAvatar ?? null }
+            )
+          }
         }
       }
     } catch (e) {
       console.error('Failed to fetch streak & scores:', e)
     }
-  }, [user])
+  }, [user?.id])
 
   const fetchUser = useCallback(async () => {
     try {
@@ -148,11 +188,18 @@ export default function DashboardPage() {
   // Initial load
   useEffect(() => {
     async function loadAll() {
-      await Promise.all([fetchUser(), fetchTasks(), fetchActivity(), fetchTargets(), fetchStreakAndScores()])
+      await Promise.all([
+        fetchUser(),
+        fetchHouse(),
+        fetchTasks(),
+        fetchActivity(),
+        fetchTargets(),
+        fetchStreakAndScores(),
+      ])
       setLoading(false)
     }
     loadAll()
-  }, [fetchUser, fetchTasks, fetchActivity, fetchTargets, fetchStreakAndScores])
+  }, [fetchUser, fetchHouse, fetchTasks, fetchActivity, fetchTargets, fetchStreakAndScores])
 
   // Real-time updates
   useRealTime(
@@ -310,8 +357,6 @@ export default function DashboardPage() {
     return new Date(t.startDate) <= now && new Date(t.endDate) >= now
   })
 
-  const partnerUser = partnerTasks[0]?.user
-
   if (loading) {
     return (
       <div>
@@ -360,7 +405,7 @@ export default function DashboardPage() {
         {/* Partner Card */}
         <div className="member-score-card">
           <div className="member-cat-avatar">
-            <img src={getCatAvatar(partnerUser?.name, partnerAvatar || partnerUser?.avatar)} alt={partnerUser?.name || 'Partner'} />
+            <img src={getCatAvatar(partnerUser?.name || 'Partner', partnerAvatar || partnerUser?.avatar)} alt={partnerUser?.name || 'Partner'} />
           </div>
           <div className="member-score-info">
             <div className="member-score-name">

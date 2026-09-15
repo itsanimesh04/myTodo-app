@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { Plus, CheckCircle2, Target, X } from 'lucide-react'
 import { getInitials, getPeriodLabel } from '@/lib/utils'
+import { getCatAvatar } from '@/lib/catAvatars'
 import { TARGET_PERIODS } from '@/lib/constants'
 import type { TargetWithUser } from '@/types'
 
@@ -173,11 +174,7 @@ export default function TargetsPage() {
                 {activeTab === 'partner' && (
                   <div className="flex items-center gap-sm mt-lg">
                     <div className="avatar avatar-sm">
-                      {target.user.avatar ? (
-                        <img src={target.user.avatar} alt={target.user.name} />
-                      ) : (
-                        getInitials(target.user.name)
-                      )}
+                      <img src={getCatAvatar(target.user.name, target.user.avatar)} alt={target.user.name} />
                     </div>
                     <span className="text-sm">{target.user.name}</span>
                   </div>

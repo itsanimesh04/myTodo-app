@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { BarChart3, Flame, TrendingUp, Calendar } from 'lucide-react'
 import { getInitials, getAccountabilityMessage } from '@/lib/utils'
+import { getCatAvatar } from '@/lib/catAvatars'
 
 interface MemberStats {
   userId: string
@@ -141,7 +142,7 @@ export default function ProgressPage() {
         {/* Me */}
         <div className="card review-card">
           <div className="avatar avatar-lg" style={{ margin: '0 auto var(--space-md)' }}>
-            {me?.userAvatar ? <img src={me.userAvatar} alt={me.userName} /> : getInitials(me?.userName || 'You')}
+            <img src={getCatAvatar(me?.userName, me?.userAvatar)} alt={me?.userName || 'You'} />
           </div>
           <div className="review-value">{getRate(me)}%</div>
           <div className="review-label">Your completion rate</div>
@@ -157,7 +158,7 @@ export default function ProgressPage() {
         {partner && (
           <div className="card review-card">
             <div className="avatar avatar-lg" style={{ margin: '0 auto var(--space-md)' }}>
-              {partner.userAvatar ? <img src={partner.userAvatar} alt={partner.userName} /> : getInitials(partner.userName)}
+              <img src={getCatAvatar(partner.userName, partner.userAvatar)} alt={partner.userName} />
             </div>
             <div className="review-value">{getRate(partner)}%</div>
             <div className="review-label">{partner.userName}&apos;s rate</div>
