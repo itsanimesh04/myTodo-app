@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
-import { calculateStreak, getWeekBounds, getMonthBounds } from '@/lib/utils'
+import { calculateStreak, getDayBounds, getWeekBounds, getMonthBounds, getDayString, APP_TIMEZONE } from '@/lib/utils'
 
 // GET /api/progress - get progress stats for the house
 // Supports ?fields=streak for lightweight streak-only response
@@ -35,10 +35,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ stats: null })
     }
 
-    const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const todayEnd = new Date(todayStart)
-    todayEnd.setDate(todayEnd.getDate() + 1)
+    const { start: todayStart, end: todayEnd } = getDayBounds()
 
     // Lightweight streak-only mode for dashboard
     if (fields === 'streak') {
@@ -46,18 +43,26 @@ export async function GET(request: Request) {
         membership.house.members.map(async (member) => {
           const completedTasks = await prisma.task.findMany({
             where: {
-              userId: member.userId,
               houseId: membership.houseId,
-              status: 'completed',
-              completedAt: { not: null },
+              OR: [
+                {
+                  userId: member.userId,
+                  status: 'completed',
+                  completedAt: { not: null },
+                },
+                {
+                  isCombined: true,
+                  completedBy: { has: member.userId },
+                },
+              ],
             },
-            select: { completedAt: true },
-            orderBy: { completedAt: 'desc' },
-            take: 90,
+            select: { completedAt: true, updatedAt: true },
+            orderBy: { updatedAt: 'desc' },
+            take: 180,
           })
 
           const completionDates = completedTasks
-            .map((t) => t.completedAt)
+            .map((t) => t.completedAt || t.updatedAt)
             .filter(Boolean) as Date[]
 
           const currentStreak = calculateStreak(completionDates)
@@ -86,18 +91,35 @@ export async function GET(request: Request) {
         houseId: membership.houseId,
       },
       select: {
+        id: true,
         userId: true,
         status: true,
         dueAt: true,
         completedAt: true,
         createdAt: true,
+        updatedAt: true,
+        isCombined: true,
+        completedBy: true,
       },
     })
 
     // Get stats for each member by filtering in-memory
     const memberStats = membership.house.members.map((member) => {
       const memberId = member.userId
-      const memberTasks = allTasks.filter((t) => t.userId === memberId)
+      const memberTasks = allTasks.filter(
+        (t) => t.userId === memberId || (t.isCombined && (t.completedBy?.includes(memberId) || t.userId === memberId))
+      )
+
+      const isCompletedByMember = (t: typeof allTasks[0]) => {
+        if (t.isCombined) {
+          return t.completedBy?.includes(memberId)
+        }
+        return t.status === 'completed' && !!t.completedAt
+      }
+
+      const getCompletionDate = (t: typeof allTasks[0]) => {
+        return t.completedAt ? new Date(t.completedAt) : new Date(t.updatedAt)
+      }
 
       // Today
       const todayTasks = memberTasks.filter((t) => {
@@ -107,8 +129,8 @@ export async function GET(request: Request) {
                (!dueAt && createdAt >= todayStart && createdAt < todayEnd)
       })
       const completedToday = memberTasks.filter((t) => {
-        if (t.status !== 'completed' || !t.completedAt) return false
-        const ca = new Date(t.completedAt)
+        if (!isCompletedByMember(t)) return false
+        const ca = getCompletionDate(t)
         return ca >= todayStart && ca < todayEnd
       }).length
       const totalToday = Math.max(todayTasks.length, completedToday)
@@ -121,8 +143,8 @@ export async function GET(request: Request) {
                (createdAt >= weekStart && createdAt <= weekEnd)
       })
       const completedWeek = memberTasks.filter((t) => {
-        if (t.status !== 'completed' || !t.completedAt) return false
-        const ca = new Date(t.completedAt)
+        if (!isCompletedByMember(t)) return false
+        const ca = getCompletionDate(t)
         return ca >= weekStart && ca <= weekEnd
       }).length
       const totalWeek = Math.max(weekTasks.length, completedWeek)
@@ -135,20 +157,20 @@ export async function GET(request: Request) {
                (createdAt >= monthStart && createdAt <= monthEnd)
       })
       const completedMonth = memberTasks.filter((t) => {
-        if (t.status !== 'completed' || !t.completedAt) return false
-        const ca = new Date(t.completedAt)
+        if (!isCompletedByMember(t)) return false
+        const ca = getCompletionDate(t)
         return ca >= monthStart && ca <= monthEnd
       }).length
       const totalMonth = Math.max(monthTasks.length, completedMonth)
 
       // Streak
       const completionDates = memberTasks
-        .filter((t) => t.status === 'completed' && t.completedAt)
-        .map((t) => t.completedAt as Date)
-        .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
-        .slice(0, 90)
+        .filter(isCompletedByMember)
+        .map(getCompletionDate)
+        .sort((a, b) => b.getTime() - a.getTime())
+
       const currentStreak = calculateStreak(completionDates)
-      const totalCompleted = memberTasks.filter((t) => t.status === 'completed').length
+      const totalCompleted = memberTasks.filter(isCompletedByMember).length
       const score = (totalCompleted * 10) + (currentStreak * 25)
 
       return {
@@ -170,15 +192,20 @@ export async function GET(request: Request) {
     })
 
     // Calendar heatmap data (last 90 days)
-    const ninetyDaysAgo = new Date(now)
+    const ninetyDaysAgo = new Date(todayStart)
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
     const heatmapData: Record<string, number> = {}
     allTasks
-      .filter((t) => t.userId === userId && t.status === 'completed' && t.completedAt && new Date(t.completedAt) >= ninetyDaysAgo)
+      .filter((t) => {
+        const isUserTask = t.userId === userId || (t.isCombined && t.completedBy?.includes(userId))
+        const isDone = t.isCombined ? t.completedBy?.includes(userId) : (t.status === 'completed' && !!t.completedAt)
+        return isUserTask && isDone
+      })
       .forEach((t) => {
-        if (t.completedAt) {
-          const key = new Date(t.completedAt).toISOString().split('T')[0]
+        const ca = t.completedAt ? new Date(t.completedAt) : new Date(t.updatedAt)
+        if (ca >= ninetyDaysAgo) {
+          const key = getDayString(ca, APP_TIMEZONE)
           heatmapData[key] = (heatmapData[key] || 0) + 1
         }
       })

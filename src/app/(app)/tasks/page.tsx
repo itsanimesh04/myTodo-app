@@ -14,7 +14,7 @@ import {
   Users2,
   Repeat,
 } from 'lucide-react'
-import { isOverdue } from '@/lib/utils'
+import { isOverdue, formatForDateTimeLocal } from '@/lib/utils'
 import { TASK_PRIORITIES, DAYS_OF_WEEK, VISIBILITY_OPTIONS } from '@/lib/constants'
 import { getTagInfo, PREDEFINED_TAGS } from '@/lib/catAvatars'
 import { useToast } from '@/components/ui/ToastProvider'
@@ -215,7 +215,7 @@ export default function TasksPage() {
     setEditTitle(task.title)
     setEditTag(task.tag || '')
     setEditPriority(task.priority || 'none')
-    setEditDueAt(task.dueAt ? new Date(task.dueAt).toISOString().slice(0, 16) : '')
+    setEditDueAt(task.dueAt ? formatForDateTimeLocal(task.dueAt) : '')
     setEditIsCombined(!!task.isCombined)
     setEditRepeatType(task.repeatType || 'none')
     setEditRepeatDays(task.repeatDays || [])

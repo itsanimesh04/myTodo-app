@@ -1,49 +1,89 @@
+export const APP_TIMEZONE = 'Asia/Kolkata'
+
 export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
-export function getGreeting(): string {
-  const hour = new Date().getHours()
+function getPartsInTimezone(date: Date = new Date(), timeZone = APP_TIMEZONE) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+    weekday: 'short',
+  })
+  const parts = formatter.formatToParts(date)
+  const getVal = (type: string) => parts.find(p => p.type === type)?.value || ''
+  const year = parseInt(getVal('year'), 10)
+  const month = parseInt(getVal('month'), 10)
+  const day = parseInt(getVal('day'), 10)
+  let hour = parseInt(getVal('hour'), 10)
+  if (hour === 24) hour = 0
+  const minute = parseInt(getVal('minute'), 10)
+  const weekday = getVal('weekday')
+  return { year, month, day, hour, minute, weekday }
+}
+
+export function getGreeting(timeZone = APP_TIMEZONE): string {
+  const { hour } = getPartsInTimezone(new Date(), timeZone)
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
 }
 
-export function formatDate(date: Date | string): string {
-  const d = new Date(date)
+export function formatDate(date: Date | string, timeZone = APP_TIMEZONE): string {
+  const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleDateString('en-US', {
+    timeZone,
     weekday: 'long',
     month: 'long',
     day: 'numeric',
   })
 }
 
-export function formatShortDate(date: Date | string): string {
-  const d = new Date(date)
+export function formatShortDate(date: Date | string, timeZone = APP_TIMEZONE): string {
+  const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleDateString('en-US', {
+    timeZone,
     month: 'short',
     day: 'numeric',
   })
 }
 
-export function formatTime(date: Date | string): string {
-  const d = new Date(date)
+export function formatTime(date: Date | string, timeZone = APP_TIMEZONE): string {
+  const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleTimeString('en-US', {
+    timeZone,
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
   })
 }
 
-export function isToday(date: Date | string): boolean {
-  const d = new Date(date)
-  const today = new Date()
-  return d.toDateString() === today.toDateString()
+export function getDayString(date: Date | string, timeZone = APP_TIMEZONE): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  return d.toLocaleDateString('en-CA', { timeZone })
+}
+
+export function formatForDateTimeLocal(date: Date | string, timeZone = APP_TIMEZONE): string {
+  const d = typeof date === 'string' ? new Date(date) : date
+  if (isNaN(d.getTime())) return ''
+  const { year, month, day, hour, minute } = getPartsInTimezone(d, timeZone)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}`
+}
+
+export function isToday(date: Date | string, timeZone = APP_TIMEZONE): boolean {
+  return getDayString(date, timeZone) === getDayString(new Date(), timeZone)
 }
 
 export function isOverdue(dueAt: Date | string | null): boolean {
   if (!dueAt) return false
-  return new Date(dueAt) < new Date()
+  return new Date(dueAt).getTime() < Date.now()
 }
 
 export function getInitials(name: string): string {
@@ -64,58 +104,89 @@ export function generateInviteCode(): string {
   return code
 }
 
-export function getWeekBounds(): { start: Date; end: Date } {
-  const now = new Date()
-  const dayOfWeek = now.getDay()
-  const start = new Date(now)
-  start.setDate(now.getDate() - dayOfWeek)
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setDate(start.getDate() + 6)
-  end.setHours(23, 59, 59, 999)
+export function getDayBounds(date: Date | string = new Date(), timeZone = APP_TIMEZONE): { start: Date; end: Date } {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const { year, month, day } = getPartsInTimezone(d, timeZone)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const start = new Date(`${year}-${pad(month)}-${pad(day)}T00:00:00+05:30`)
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
   return { start, end }
 }
 
-export function getMonthBounds(): { start: Date; end: Date } {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), now.getMonth(), 1)
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+export function getDayOfWeekInTimezone(date: Date = new Date(), timeZone = APP_TIMEZONE): number {
+  const { weekday } = getPartsInTimezone(date, timeZone)
+  const daysMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return daysMap[weekday] ?? 0
+}
+
+export function getWeekBounds(date: Date | string = new Date(), timeZone = APP_TIMEZONE): { start: Date; end: Date } {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const { start: todayStart } = getDayBounds(d, timeZone)
+  const { weekday } = getPartsInTimezone(d, timeZone)
+  const daysMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const dayOfWeek = daysMap[weekday] ?? 0
+
+  const start = new Date(todayStart.getTime() - dayOfWeek * 24 * 60 * 60 * 1000)
+  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1)
   return { start, end }
 }
 
-export function getYearBounds(): { start: Date; end: Date } {
-  const now = new Date()
-  const start = new Date(now.getFullYear(), 0, 1)
-  const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999)
+export function getMonthBounds(date: Date | string = new Date(), timeZone = APP_TIMEZONE): { start: Date; end: Date } {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const { year, month } = getPartsInTimezone(d, timeZone)
+  const pad = (n: number) => String(n).padStart(2, '0')
+
+  const start = new Date(`${year}-${pad(month)}-01T00:00:00+05:30`)
+  const nextMonthYear = month === 12 ? year + 1 : year
+  const nextMonth = month === 12 ? 1 : month + 1
+  const end = new Date(new Date(`${nextMonthYear}-${pad(nextMonth)}-01T00:00:00+05:30`).getTime() - 1)
   return { start, end }
 }
 
-export function calculateStreak(completionDates: Date[]): number {
-  if (completionDates.length === 0) return 0
+export function getYearBounds(date: Date | string = new Date(), timeZone = APP_TIMEZONE): { start: Date; end: Date } {
+  const d = typeof date === 'string' ? new Date(date) : date
+  const { year } = getPartsInTimezone(d, timeZone)
+  const start = new Date(`${year}-01-01T00:00:00+05:30`)
+  const end = new Date(new Date(`${year + 1}-01-01T00:00:00+05:30`).getTime() - 1)
+  return { start, end }
+}
 
-  const uniqueDays = [...new Set(
-    completionDates.map(d => new Date(d).toDateString())
-  )].sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+export function calculateStreak(completionDates: (Date | string)[], timeZone = APP_TIMEZONE): number {
+  if (!completionDates || completionDates.length === 0) return 0
 
-  let streak = 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  const dayStrings = Array.from(
+    new Set(
+      completionDates
+        .filter(Boolean)
+        .map((d) => getDayString(d, timeZone))
+    )
+  )
 
-  for (let i = 0; i < uniqueDays.length; i++) {
-    const expected = new Date(today)
-    expected.setDate(today.getDate() - i)
-    
-    if (new Date(uniqueDays[i]).toDateString() === expected.toDateString()) {
+  if (dayStrings.length === 0) return 0
+
+  const days = dayStrings
+    .map((str) => {
+      const [y, m, d] = str.split('-').map(Number)
+      return Date.UTC(y, m - 1, d)
+    })
+    .sort((a, b) => b - a)
+
+  const todayStr = getDayString(new Date(), timeZone)
+  const [ty, tm, td] = todayStr.split('-').map(Number)
+  const todayUtc = Date.UTC(ty, tm - 1, td)
+
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000
+  const diffFromToday = Math.round((todayUtc - days[0]) / ONE_DAY_MS)
+
+  if (diffFromToday > 1) {
+    return 0
+  }
+
+  let streak = 1
+  for (let i = 0; i < days.length - 1; i++) {
+    const dayDiff = Math.round((days[i] - days[i + 1]) / ONE_DAY_MS)
+    if (dayDiff === 1) {
       streak++
-    } else if (i === 0) {
-      // Check if yesterday counts (if today hasn't had completions yet)
-      const yesterday = new Date(today)
-      yesterday.setDate(today.getDate() - 1)
-      if (new Date(uniqueDays[i]).toDateString() === yesterday.toDateString()) {
-        streak++
-      } else {
-        break
-      }
     } else {
       break
     }

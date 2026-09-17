@@ -17,7 +17,7 @@ import {
   X,
   Tag as TagIcon,
 } from 'lucide-react'
-import { getGreeting, formatDate, isOverdue, getAccountabilityMessage } from '@/lib/utils'
+import { getGreeting, formatDate, isOverdue, getAccountabilityMessage, formatForDateTimeLocal } from '@/lib/utils'
 import { MOTIVATIONAL_SUBTITLES, REACTION_TYPES, TASK_PRIORITIES } from '@/lib/constants'
 import { getCatAvatar, getTagInfo, PREDEFINED_TAGS } from '@/lib/catAvatars'
 import { useToast } from '@/components/ui/ToastProvider'
@@ -296,7 +296,7 @@ export default function DashboardPage() {
     setEditTitle(task.title)
     setEditTag(task.tag || '')
     setEditPriority(task.priority || 'none')
-    setEditDueAt(task.dueAt ? new Date(task.dueAt).toISOString().slice(0, 16) : '')
+    setEditDueAt(task.dueAt ? formatForDateTimeLocal(task.dueAt) : '')
     setEditIsCombined(!!task.isCombined)
   }
 

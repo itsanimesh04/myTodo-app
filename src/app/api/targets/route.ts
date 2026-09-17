@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { createTargetSchema } from '@/lib/validations'
+import { getWeekBounds, getMonthBounds, getYearBounds } from '@/lib/utils'
 
 // GET /api/targets
 export async function GET() {
@@ -67,24 +68,21 @@ export async function POST(request: Request) {
     const { title, description, targetType, targetValue, period } = result.data
 
     // Calculate date range
-    const now = new Date()
     let startDate: Date
     let endDate: Date
 
     if (period === 'weekly') {
-      const dayOfWeek = now.getDay()
-      startDate = new Date(now)
-      startDate.setDate(now.getDate() - dayOfWeek)
-      startDate.setHours(0, 0, 0, 0)
-      endDate = new Date(startDate)
-      endDate.setDate(startDate.getDate() + 6)
-      endDate.setHours(23, 59, 59, 999)
+      const bounds = getWeekBounds()
+      startDate = bounds.start
+      endDate = bounds.end
     } else if (period === 'monthly') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+      const bounds = getMonthBounds()
+      startDate = bounds.start
+      endDate = bounds.end
     } else {
-      startDate = new Date(now.getFullYear(), 0, 1)
-      endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999)
+      const bounds = getYearBounds()
+      startDate = bounds.start
+      endDate = bounds.end
     }
 
     // Count existing completed tasks in range for auto-tracking

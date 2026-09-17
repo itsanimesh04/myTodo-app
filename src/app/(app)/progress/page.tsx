@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { BarChart3, Flame, TrendingUp, Calendar } from 'lucide-react'
-import { getInitials, getAccountabilityMessage } from '@/lib/utils'
+import { getInitials, getAccountabilityMessage, getDayString } from '@/lib/utils'
 import { getCatAvatar } from '@/lib/catAvatars'
 
 interface MemberStats {
@@ -107,7 +107,7 @@ export default function ProgressPage() {
   for (let i = 89; i >= 0; i--) {
     const d = new Date()
     d.setDate(d.getDate() - i)
-    const key = d.toISOString().split('T')[0]
+    const key = getDayString(d)
     const count = stats.heatmap?.[key] || 0
     let level = 0
     if (count > 0) level = Math.min(4, Math.ceil((count / maxHeatmapValue) * 4))

@@ -3,7 +3,7 @@ import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { createTaskSchema } from '@/lib/validations'
 import { eventBus } from '@/lib/events'
-import { generateInviteCode } from '@/lib/utils'
+import { generateInviteCode, getDayBounds, getDayOfWeekInTimezone } from '@/lib/utils'
 
 // GET /api/tasks - list tasks for current user's house
 export async function GET(request: Request) {
@@ -49,14 +49,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ tasks: [] })
     }
 
-    const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const todayEnd = new Date(todayStart)
-    todayEnd.setDate(todayEnd.getDate() + 1)
-    const currentDayOfWeek = now.getDay() // 0 = Sunday, 1 = Monday, etc.
-
-    const weekEnd = new Date(todayStart)
-    weekEnd.setDate(weekEnd.getDate() + 7)
+    const { start: todayStart, end: todayEnd } = getDayBounds()
+    const currentDayOfWeek = getDayOfWeekInTimezone()
+    const weekEnd = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000)
 
     // Base query conditions
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
